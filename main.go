@@ -1,37 +1,43 @@
 package main
 
 import (
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"strings"
+    "fmt"
+    "net"
+    "os"
 )
 
-var peers = make(map[string]string)
-
-func handlePostedPeer(w http.ResponseWriter, r *http.Request) {
-	// Read the body as a raw byte slice
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		fmt.Fprintf(w, "Error reading request body: %s", err.Error())
-		return
-	}
-
-	// Get the client's source IP address
-	clientIP := r.RemoteAddr
-	if colonIndex := strings.LastIndex(clientIP, ":"); colonIndex != -1 {
-		clientIP = clientIP[:colonIndex] // Remove port from the address
-	}
-
-	// Store the client's IP and POST body in the global map
-	peers[clientIP] = string(body)
-
-	fmt.Printf("Current peers map: %+v\n", peers)
-}
-
 func main() {
-    http.HandleFunc("/", handlePostedPeer)
-    fmt.Println("HTTP server starting on port 8080...")
-    log.Fatal(http.ListenAndServe(":8080", nil))
+    // Listen on UDP port 50000
+    addr := net.UDPAddr{
+        Port: 50000,
+        IP: net.ParseIP("0.0.0.0"),
+    }
+    
+    conn, err := net.ListenUDP("udp", &addr)
+    if err != nil {
+        fmt.Printf("Failed to bind to port 50000: %v\n", err)
+        os.Exit(1)
+    }
+    defer conn.Close()
+    
+    fmt.Printf("Server listening on %s\n", conn.LocalAddr().String())
+    
+    buffer := make([]byte, 1024)
+    for {
+        n, remoteAddr, err := conn.ReadFromUDP(buffer)
+        if err != nil {
+            fmt.Printf("Error receiving data: %v\n", err)
+            continue
+        }
+        
+        if string(buffer[:n]) == "whoami" {
+            response := fmt.Sprintf("addr:%s", remoteAddr.String())
+            _, err := conn.WriteToUDP([]byte(response), remoteAddr)
+            if err != nil {
+                fmt.Printf("Error sending response: %v\n", err)
+                continue
+            }
+            fmt.Printf("Responded to %s with their address\n", remoteAddr.String())
+        }
+    }
 }
