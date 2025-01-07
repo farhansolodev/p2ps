@@ -22,6 +22,5 @@ asdf global golang latest
 # ./stun-nat-behaviour
 
 #p2p
-git clone https://github.com/farhansolodev/p2pc
-cd p2pc
 go build .
+./p2p
